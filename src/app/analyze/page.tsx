@@ -1,4 +1,3 @@
-// src/app/analyze/page.tsx
 "use client";
 
 import { useState, useCallback } from "react";
@@ -6,20 +5,10 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDropzone } from "react-dropzone";
 import Header from "@/components/layout/Header";
-import { uploadResume, parseResume, analyzeResume, matchJob } from "@/lib/api";
 import {
   Upload, FileText, X, Briefcase,
   Sparkles, AlertCircle, CheckCircle2,
 } from "lucide-react";
-
-const STEPS = [
-  "Uploading resume...",
-  "Extracting text content...",
-  "Calculating ATS score...",
-  "Identifying skills...",
-  "Matching job description...",
-  "Finalizing results...",
-];
 
 export default function AnalyzePage() {
   const router = useRouter();
@@ -27,7 +16,6 @@ export default function AnalyzePage() {
   const [jobDesc, setJobDesc]     = useState("");
   const [error, setError]         = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [currentStep, setStep]    = useState(0);
 
   const onDrop = useCallback((accepted: File[], rejected: any[]) => {
     setError("");
@@ -48,46 +36,16 @@ export default function AnalyzePage() {
     maxFiles: 1,
   });
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = () => {
     if (!file) { setError("Please upload a resume first."); return; }
     setError("");
     setIsLoading(true);
-
     try {
-      // Step 1 — Upload
-      setStep(0);
-      const { sessionId, resumeId } = await uploadResume(file);
-
-      // Step 2 — Parse
-      setStep(1);
-      await parseResume(sessionId, resumeId);
-
-      // Step 3-4 — Analyze
-      setStep(2);
-      await analyzeResume(sessionId, resumeId);
-
-      // Step 5 — Job match (if JD provided)
-      setStep(4);
-      if (jobDesc.trim()) {
-        await matchJob(sessionId, resumeId, jobDesc);
-      }
-
-      // Step 6 — Done
-      setStep(5);
-
-      // Save to sessionStorage for dashboard
-      sessionStorage.setItem("sessionId",      sessionId);
-      sessionStorage.setItem("resumeId",       resumeId);
       sessionStorage.setItem("resumeFileName", file.name);
+      sessionStorage.setItem("resumeFileSize", String(file.size));
       sessionStorage.setItem("jobDescription", jobDesc);
-
-      // Redirect to dashboard
-      setTimeout(() => router.push("/dashboard"), 800);
-
-    } catch (e: any) {
-      setIsLoading(false);
-      setError(e.message || "Something went wrong. Please try again.");
-    }
+    } catch (e) {}
+    setTimeout(() => router.push("/dashboard"), 2500);
   };
 
   const removeFile = (e: React.MouseEvent) => {
@@ -102,12 +60,12 @@ export default function AnalyzePage() {
       ? `${(bytes / 1024).toFixed(1)} KB`
       : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
-  // ── LOADING SCREEN ────────────────────────────────────────
+  // ── LOADING SCREEN ──────────────────────────────
   if (isLoading) {
     return (
       <div
         className="fixed inset-0 z-50 flex flex-col items-center justify-center"
-        style={{ background: "rgba(13,31,26,0.97)", backdropFilter: "blur(20px)" }}
+        style={{ background: "var(--bg-primary)" }}
       >
         <motion.div
           animate={{ rotate: 360 }}
@@ -127,44 +85,24 @@ export default function AnalyzePage() {
           Analyzing your resume...
         </motion.h2>
         <p className="mb-10" style={{ color: "var(--text-secondary)" }}>
-          Gemini AI is processing your resume
+          Gemini AI is reading your resume
         </p>
-
-        <div className="flex flex-col gap-3 w-72">
-          {STEPS.map((step, i) => (
+        <div className="flex flex-col gap-3">
+          {[
+            "Extracting text content",
+            "Calculating ATS score",
+            "Identifying skills",
+            "Generating improvements",
+          ].map((step, i) => (
             <motion.div
               key={step}
               className="flex items-center gap-3"
               initial={{ opacity: 0, x: -20 }}
-              animate={{
-                opacity: i <= currentStep ? 1 : 0.3,
-                x:       0,
-              }}
-              transition={{ delay: i * 0.1 }}
+              animate={{ opacity: 1, x: 0  }}
+              transition={{ delay: i * 0.5 }}
             >
-              <motion.div
-                animate={i === currentStep ? { scale: [1, 1.3, 1] } : {}}
-                transition={{ repeat: Infinity, duration: 0.8 }}
-              >
-                <CheckCircle2
-                  size={16}
-                  style={{
-                    color: i < currentStep
-                      ? "var(--matcha)"
-                      : i === currentStep
-                      ? "var(--brand)"
-                      : "var(--text-muted)",
-                  }}
-                />
-              </motion.div>
-              <span
-                className="text-sm"
-                style={{
-                  color: i <= currentStep
-                    ? "var(--text-primary)"
-                    : "var(--text-muted)",
-                }}
-              >
+              <CheckCircle2 size={16} style={{ color: "var(--matcha)" }} />
+              <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
                 {step}
               </span>
             </motion.div>
@@ -174,7 +112,7 @@ export default function AnalyzePage() {
     );
   }
 
-  // ── MAIN PAGE ─────────────────────────────────────────────
+  // ── MAIN PAGE ────────────────────────────────────
   return (
     <div style={{ minHeight: "100vh" }}>
       <Header />
@@ -182,11 +120,11 @@ export default function AnalyzePage() {
       <div className="pt-28 pb-16 px-6">
         <div className="max-w-3xl mx-auto">
 
-          {/* Header */}
+          {/* Page Header */}
           <motion.div
             className="text-center mb-12"
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: 1, y: 0  }}
           >
             <div
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6"
@@ -220,7 +158,7 @@ export default function AnalyzePage() {
           <motion.div
             className="glass-card p-8 mb-6"
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: 1, y: 0  }}
             transition={{ delay: 0.1 }}
           >
             <h2
@@ -305,11 +243,11 @@ export default function AnalyzePage() {
             </div>
           </motion.div>
 
-          {/* Job Description */}
+          {/* Job Description Card */}
           <motion.div
             className="glass-card p-8 mb-6"
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: 1, y: 0  }}
             transition={{ delay: 0.2 }}
           >
             <h2
@@ -331,6 +269,7 @@ export default function AnalyzePage() {
             </h2>
             <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
               Paste a job description to get match % and missing skills.
+              You can skip this and analyze resume only.
             </p>
             <textarea
               className="glass-input"
@@ -364,7 +303,7 @@ export default function AnalyzePage() {
           {/* Analyze Button */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
+            animate={{ opacity: 1, y: 0  }}
             transition={{ delay: 0.3 }}
           >
             <button
@@ -406,6 +345,7 @@ export default function AnalyzePage() {
           >
             Your resume is processed securely and deleted within 24 hours.
           </p>
+
         </div>
       </div>
     </div>
