@@ -1,52 +1,41 @@
 // src/app/download/page.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Header from "@/components/layout/Header";
-import { Download, CheckCircle2, FileText, ArrowLeft, Sparkles } from "lucide-react";
-
-const MOCK_IMPROVED = `John Doe
-john.doe@email.com | linkedin.com/in/johndoe | github.com/johndoe | +1 (555) 123-4567
-
-PROFESSIONAL SUMMARY
-Results-driven Full Stack Developer with 4+ years of experience building scalable web applications using React, TypeScript, and Node.js. Proven track record of delivering high-performance solutions, reducing load times by 40%, and leading cross-functional agile teams. Seeking to leverage expertise in cloud infrastructure and CI/CD pipelines to drive innovation at a forward-thinking tech company.
-
-TECHNICAL SKILLS
-Languages:    JavaScript (ES2023), TypeScript, Python, SQL
-Frontend:     React 18, Next.js 14, Tailwind CSS, Framer Motion
-Backend:      Node.js, Express, REST APIs, GraphQL
-DevOps:       Docker, AWS (EC2, S3, Lambda), CI/CD, GitHub Actions
-Databases:    PostgreSQL, MongoDB, Redis
-Tools:        Git, Jira, Figma, VS Code
-
-PROFESSIONAL EXPERIENCE
-Senior Frontend Developer | TechCorp Inc. | Jan 2022 – Present
-- Architected and shipped 12 production features using React 18 and TypeScript, serving 50,000+ daily users
-- Reduced page load time by 40% through code splitting, lazy loading, and CDN optimization
-- Led a team of 4 developers using agile methodologies, achieving 95% sprint completion rate
-- Implemented CI/CD pipeline using GitHub Actions, reducing deployment time from 2 hours to 15 minutes
-
-Frontend Developer | StartupXYZ | Jun 2020 – Dec 2021
-- Built responsive dashboard UI with React and Tailwind CSS, increasing user engagement by 35%
-- Integrated REST APIs and WebSocket connections for real-time data visualization
-- Wrote comprehensive unit and integration tests using Jest and React Testing Library (90% coverage)
-
-EDUCATION
-B.Sc. Computer Science | University of Technology | 2020 | GPA: 3.8/4.0
-
-PROJECTS
-AI Resume Analyzer | Next.js, TypeScript, Google Gemini API, Cloudflare Workers
-- Built an AI-powered resume analysis tool processing 1,000+ resumes per day
-- Integrated Google Gemini API for NLP-based skill extraction and ATS scoring`;
+import { improveResume } from "@/lib/api";
+import {
+  Download, CheckCircle2, FileText,
+  ArrowLeft, Sparkles, Loader2, AlertCircle,
+} from "lucide-react";
 
 export default function DownloadPage() {
-  const [downloaded, setDownloaded] = useState(false);
+  const router = useRouter();
+  const [improvedText, setImprovedText] = useState("");
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState("");
+  const [downloaded, setDownloaded]     = useState(false);
+
+  useEffect(() => {
+    const sessionId = sessionStorage.getItem("sessionId");
+    const resumeId  = sessionStorage.getItem("resumeId");
+
+    if (!sessionId || !resumeId) {
+      router.push("/analyze");
+      return;
+    }
+
+    improveResume(sessionId, resumeId)
+      .then((res) => setImprovedText(res.improvedText))
+      .catch((e)  => setError(e.message || "Failed to generate improved resume."))
+      .finally(() => setLoading(false));
+  }, [router]);
 
   const handleDownload = () => {
-    // Real PDF generation wired in Phase 4
-    const blob = new Blob([MOCK_IMPROVED], { type: "text/plain" });
+    const blob = new Blob([improvedText], { type: "text/plain;charset=utf-8" });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement("a");
     a.href     = url;
@@ -56,9 +45,35 @@ export default function DownloadPage() {
     setDownloaded(true);
   };
 
+  if (loading) return (
+    <div className="fixed inset-0 flex flex-col items-center justify-center"
+      style={{ background: "var(--bg-primary)" }}>
+      <Loader2 size={40} className="animate-spin mb-4" style={{ color: "var(--brand)" }} />
+      <p className="text-lg font-semibold mb-1" style={{ color: "var(--text-primary)", fontFamily: "Inter" }}>
+        Rewriting your resume...
+      </p>
+      <p style={{ color: "var(--text-secondary)" }}>
+        AI is optimizing every bullet point for ATS
+      </p>
+    </div>
+  );
+
+  if (error) return (
+    <div className="fixed inset-0 flex items-center justify-center"
+      style={{ background: "var(--bg-primary)" }}>
+      <div className="glass-card p-8 text-center max-w-md">
+        <AlertCircle size={40} className="mx-auto mb-4" style={{ color: "#FF6B6B" }} />
+        <p className="mb-4" style={{ color: "#FF6B6B" }}>{error}</p>
+        <Link href="/dashboard">
+          <button className="btn-secondary">← Back to Dashboard</button>
+        </Link>
+      </div>
+    </div>
+  );
+
   return (
-<div style={{ minHeight: "100vh" }}>
-    <Header />
+    <div style={{ minHeight: "100vh" }}>
+      <Header />
       <div className="pt-28 pb-16 px-6">
         <div className="max-w-4xl mx-auto">
 
@@ -76,28 +91,29 @@ export default function DownloadPage() {
               Your Improved Resume
             </h1>
             <p style={{ color: "var(--text-secondary)" }}>
-              Gemini AI has rewritten your resume for maximum ATS compatibility.
+              AI has rewritten your resume for maximum ATS compatibility.
             </p>
           </motion.div>
 
-          {/* Improvements summary */}
+          {/* What was improved */}
           <motion.div className="glass-card p-6 mb-6"
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            <h2 className="font-semibold mb-4" style={{ fontFamily: "Inter", color: "var(--text-primary)" }}>
-              What was improved
+            <h2 className="font-semibold mb-4"
+              style={{ fontFamily: "Inter", color: "var(--text-primary)" }}>
+              What the AI improved
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {[
-                "Added quantified achievements to all experience entries",
-                "Expanded summary with role-specific keywords",
-                "Reorganized skills section by category",
-                "Added LinkedIn and GitHub to contact section",
-                "Standardized bullet point formatting throughout",
-                "Inserted CI/CD, Docker, and AWS keywords",
+                "Added strong action verbs to every bullet",
+                "Quantified achievements with numbers",
+                "Injected ATS keywords naturally",
+                "Restructured sections in optimal order",
+                "Tightened language and removed filler",
+                "Added clear ALL CAPS section headers",
               ].map((item, i) => (
                 <motion.div key={i} className="flex items-start gap-2"
                   initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2 + i * 0.07 }}>
+                  transition={{ delay: 0.2 + i * 0.06 }}>
                   <CheckCircle2 size={16} style={{ color: "var(--matcha)", flexShrink: 0, marginTop: 2 }} />
                   <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{item}</span>
                 </motion.div>
@@ -114,32 +130,27 @@ export default function DownloadPage() {
                 Preview
               </h2>
             </div>
-            <div
-              className="rounded-xl p-6 font-mono text-xs leading-relaxed overflow-y-auto max-h-96"
+            <div className="rounded-xl p-6 font-mono text-xs leading-relaxed overflow-y-auto max-h-96"
               style={{
-                background:  "var(--bg-secondary)",
-                border:      "1px solid var(--card-border)",
-                color:       "var(--text-secondary)",
-                whiteSpace:  "pre-wrap",
-              }}
-            >
-              {MOCK_IMPROVED}
+                background: "var(--bg-secondary)",
+                border:     "1px solid var(--card-border)",
+                color:      "var(--text-secondary)",
+                whiteSpace: "pre-wrap",
+              }}>
+              {improvedText}
             </div>
           </motion.div>
 
           {/* Action Buttons */}
           <motion.div className="flex flex-col sm:flex-row gap-4 justify-center"
             initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-            <motion.button
-              className="btn-primary"
+            <motion.button className="btn-primary"
               onClick={handleDownload}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{  scale: 0.97 }}
-              style={{ padding: "14px 32px", fontSize: "16px" }}
-            >
+              whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+              style={{ padding: "14px 32px", fontSize: "16px" }}>
               {downloaded
                 ? <><CheckCircle2 size={18} /> Downloaded!</>
-                : <><Download size={18} /> Download as PDF</>}
+                : <><Download size={18} /> Download as TXT</>}
             </motion.button>
             <Link href="/dashboard">
               <motion.button className="btn-secondary"

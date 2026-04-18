@@ -1,413 +1,302 @@
-// src/app/analyze/page.tsx
+// src/app/page.tsx
 "use client";
 
-import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { useDropzone } from "react-dropzone";
+import { motion } from "framer-motion";
+import Link from "next/link";
 import Header from "@/components/layout/Header";
-import { uploadResume, parseResume, analyzeResume, matchJob } from "@/lib/api";
 import {
-  Upload, FileText, X, Briefcase,
-  Sparkles, AlertCircle, CheckCircle2,
+  FileText, Zap, Target, TrendingUp,
+  Download, GitCompare, ArrowRight, CheckCircle,
 } from "lucide-react";
 
-const STEPS = [
-  "Uploading resume...",
-  "Extracting text content...",
-  "Calculating ATS score...",
-  "Identifying skills...",
-  "Matching job description...",
-  "Finalizing results...",
+const features = [
+  {
+    icon: <Zap size={22} />,
+    title: "ATS Score",
+    desc: "Get a 0–100 compatibility score with detailed breakdown across keywords, formatting, and readability.",
+  },
+  {
+    icon: <Target size={22} />,
+    title: "Job Matching",
+    desc: "Paste any job description and instantly see your match percentage plus missing skills.",
+  },
+  {
+    icon: <FileText size={22} />,
+    title: "Skill Extraction",
+    desc: "AI categorizes all your skills into Technical, Soft Skills, and Tools & Technologies.",
+  },
+  {
+    icon: <TrendingUp size={22} />,
+    title: "Section Analysis",
+    desc: "Every resume section scored individually — Contact, Summary, Experience, Skills, and more.",
+  },
+  {
+    icon: <GitCompare size={22} />,
+    title: "Resume Comparison",
+    desc: "Upload two versions and compare ATS scores, keyword coverage, and improvements side by side.",
+  },
+  {
+    icon: <Download size={22} />,
+    title: "Download Improved",
+    desc: "Get an AI-rewritten, ATS-optimized version of your resume ready to download.",
+  },
 ];
 
-export default function AnalyzePage() {
-  const router = useRouter();
-  const [file, setFile]           = useState<File | null>(null);
-  const [jobDesc, setJobDesc]     = useState("");
-  const [error, setError]         = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentStep, setStep]    = useState(0);
+const steps = [
+  { step: "01", title: "Upload Resume",     desc: "Drop your PDF or DOCX resume" },
+  { step: "02", title: "AI Analysis",       desc: "Groq AI analyzes every detail" },
+  { step: "03", title: "Get Your Score",    desc: "See ATS score, skills & gaps" },
+  { step: "04", title: "Download Improved", desc: "Export your optimized resume" },
+];
 
-  const onDrop = useCallback((accepted: File[], rejected: any[]) => {
-    setError("");
-    if (rejected.length > 0) {
-      setError("Only PDF or DOCX files under 10MB are accepted.");
-      return;
-    }
-    if (accepted.length > 0) setFile(accepted[0]);
-  }, []);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      "application/pdf": [".pdf"],
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-    },
-    maxSize:  10 * 1024 * 1024,
-    maxFiles: 1,
-  });
-
-  const handleAnalyze = async () => {
-    if (!file) { setError("Please upload a resume first."); return; }
-    setError("");
-    setIsLoading(true);
-
-    try {
-      // Step 1 — Upload
-      setStep(0);
-      const { sessionId, resumeId } = await uploadResume(file);
-
-      // Step 2 — Parse
-      setStep(1);
-      await parseResume(sessionId, resumeId);
-
-      // Step 3-4 — Analyze
-      setStep(2);
-      await analyzeResume(sessionId, resumeId);
-
-      // Step 5 — Job match (if JD provided)
-      setStep(4);
-      if (jobDesc.trim()) {
-        await matchJob(sessionId, resumeId, jobDesc);
-      }
-
-      // Step 6 — Done
-      setStep(5);
-
-      // Save to sessionStorage for dashboard
-      sessionStorage.setItem("sessionId",      sessionId);
-      sessionStorage.setItem("resumeId",       resumeId);
-      sessionStorage.setItem("resumeFileName", file.name);
-      sessionStorage.setItem("jobDescription", jobDesc);
-
-      // Redirect to dashboard
-      setTimeout(() => router.push("/dashboard"), 800);
-
-    } catch (e: any) {
-      setIsLoading(false);
-      setError(e.message || "Something went wrong. Please try again.");
-    }
-  };
-
-  const removeFile = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setFile(null);
-    setError("");
-  };
-
-  const formatSize = (bytes: number) =>
-    bytes < 1024 * 1024
-      ? `${(bytes / 1024).toFixed(1)} KB`
-      : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-
-  // ── LOADING SCREEN ────────────────────────────────────────
-  if (isLoading) {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex flex-col items-center justify-center"
-        style={{ background: "rgba(13,31,26,0.97)", backdropFilter: "blur(20px)" }}
-      >
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-          className="w-16 h-16 rounded-full mb-8"
-          style={{
-            border:         "3px solid var(--glass-border)",
-            borderTopColor: "var(--brand)",
-          }}
-        />
-        <motion.h2
-          className="text-2xl font-bold mb-2"
-          style={{ fontFamily: "Inter", color: "var(--text-primary)" }}
-          animate={{ opacity: [1, 0.5, 1] }}
-          transition={{ repeat: Infinity, duration: 1.5 }}
-        >
-          Analyzing your resume...
-        </motion.h2>
-        <p className="mb-10" style={{ color: "var(--text-secondary)" }}>
-          Gemini AI is processing your resume
-        </p>
-
-        <div className="flex flex-col gap-3 w-72">
-          {STEPS.map((step, i) => (
-            <motion.div
-              key={step}
-              className="flex items-center gap-3"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{
-                opacity: i <= currentStep ? 1 : 0.3,
-                x:       0,
-              }}
-              transition={{ delay: i * 0.1 }}
-            >
-              <motion.div
-                animate={i === currentStep ? { scale: [1, 1.3, 1] } : {}}
-                transition={{ repeat: Infinity, duration: 0.8 }}
-              >
-                <CheckCircle2
-                  size={16}
-                  style={{
-                    color: i < currentStep
-                      ? "var(--matcha)"
-                      : i === currentStep
-                      ? "var(--brand)"
-                      : "var(--text-muted)",
-                  }}
-                />
-              </motion.div>
-              <span
-                className="text-sm"
-                style={{
-                  color: i <= currentStep
-                    ? "var(--text-primary)"
-                    : "var(--text-muted)",
-                }}
-              >
-                {step}
-              </span>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // ── MAIN PAGE ─────────────────────────────────────────────
+export default function LandingPage() {
   return (
-    <div style={{ minHeight: "100vh" }}>
+    <main
+      className="min-h-screen overflow-x-hidden"
+      style={{ background: "transparent", position: "relative", zIndex: 1 }}
+    >
       <Header />
 
-      <div className="pt-28 pb-16 px-6">
-        <div className="max-w-3xl mx-auto">
+      {/* ── HERO ── */}
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        <div
+          className="absolute inset-0 z-10"
+          style={{
+            background: "radial-gradient(ellipse at center, transparent 10%, rgba(13,31,26,0.55) 100%)",
+            pointerEvents: "none",
+          }}
+        />
 
-          {/* Header */}
+        <div className="relative z-20 text-center px-6 max-w-4xl mx-auto">
+          {/* Badge */}
           <motion.div
-            className="text-center mb-12"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <div
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6"
-              style={{
-                background:     "var(--glass-bg)",
-                border:         "1px solid var(--glass-border)",
-                backdropFilter: "blur(10px)",
-              }}
-            >
-              <Sparkles size={14} style={{ color: "var(--matcha)" }} />
-              <span
-                className="text-sm font-medium"
-                style={{ color: "var(--matcha)", fontFamily: "Inter" }}
-              >
-                AI-Powered Analysis
-              </span>
-            </div>
-            <h1
-              className="text-4xl md:text-5xl font-bold mb-4"
-              style={{ fontFamily: "Inter", color: "var(--text-primary)" }}
-            >
-              Analyze Your Resume
-            </h1>
-            <p className="text-lg" style={{ color: "var(--text-secondary)" }}>
-              Upload your resume and get instant ATS score, skill analysis,
-              and AI improvements.
-            </p>
-          </motion.div>
-
-          {/* Upload Card */}
-          <motion.div
-            className="glass-card p-8 mb-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <h2
-              className="text-lg font-semibold mb-4 flex items-center gap-2"
-              style={{ fontFamily: "Inter", color: "var(--text-primary)" }}
-            >
-              <FileText size={20} style={{ color: "var(--matcha)" }} />
-              Upload Resume
-              <span className="text-sm font-normal" style={{ color: "var(--text-muted)" }}>
-                (PDF or DOCX, max 10MB)
-              </span>
-            </h2>
-
-            <div
-              {...getRootProps()}
-              className={`upload-zone p-10 text-center ${isDragActive ? "drag-over" : ""}`}
-            >
-              <input {...getInputProps()} />
-              {file ? (
-                <div
-                  className="flex items-center justify-between p-4 rounded-xl"
-                  style={{
-                    background: "rgba(28,110,74,0.15)",
-                    border:     "1px solid var(--glass-border)",
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
-                      style={{ background: "var(--brand)" }}
-                    >
-                      <FileText size={18} color="white" />
-                    </div>
-                    <div className="text-left">
-                      <p className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>
-                        {file.name}
-                      </p>
-                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                        {formatSize(file.size)}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={removeFile}
-                    style={{
-                      color: "var(--text-muted)", cursor: "pointer",
-                      background: "none", border: "none", padding: "4px",
-                    }}
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              ) : (
-                <div>
-                  <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-                    style={{
-                      background: "var(--glass-bg)",
-                      border:     "1px solid var(--glass-border)",
-                    }}
-                  >
-                    <Upload size={28} style={{ color: "var(--matcha)" }} />
-                  </div>
-                  <p
-                    className="font-semibold mb-1"
-                    style={{ fontFamily: "Inter", color: "var(--text-primary)" }}
-                  >
-                    {isDragActive ? "Drop it here!" : "Drag & drop your resume"}
-                  </p>
-                  <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                    or{" "}
-                    <span style={{ color: "var(--matcha)", textDecoration: "underline" }}>
-                      browse files
-                    </span>
-                  </p>
-                  <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
-                    PDF or DOCX · Max 10MB
-                  </p>
-                </div>
-              )}
-            </div>
-          </motion.div>
-
-          {/* Job Description */}
-          <motion.div
-            className="glass-card p-8 mb-6"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6 skill-tag"
           >
-            <h2
-              className="text-lg font-semibold mb-2 flex items-center gap-2"
-              style={{ fontFamily: "Inter", color: "var(--text-primary)" }}
-            >
-              <Briefcase size={20} style={{ color: "var(--matcha)" }} />
-              Job Description
-              <span
-                className="text-xs px-2 py-0.5 rounded-full"
-                style={{
-                  background: "var(--glass-bg)",
-                  color:      "var(--text-muted)",
-                  border:     "1px solid var(--glass-border)",
-                }}
-              >
-                Optional
-              </span>
-            </h2>
-            <p className="text-sm mb-4" style={{ color: "var(--text-secondary)" }}>
-              Paste a job description to get match % and missing skills.
-            </p>
-            <textarea
-              className="glass-input"
-              rows={5}
-              placeholder="Optional — paste job description here..."
-              value={jobDesc}
-              onChange={(e) => setJobDesc(e.target.value)}
-              style={{ resize: "vertical" }}
-            />
+            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: "var(--matcha)" }} />
+            <span className="text-sm">Powered by Groq AI (Llama 3.3 70B)</span>
           </motion.div>
 
-          {/* Error */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0  }}
-                exit={{   opacity: 0, y: -10 }}
-                className="flex items-center gap-3 p-4 rounded-xl mb-6"
-                style={{
-                  background: "rgba(139,0,0,0.15)",
-                  border:     "1px solid rgba(220,50,50,0.3)",
-                }}
-              >
-                <AlertCircle size={18} style={{ color: "#FF6B6B" }} />
-                <p className="text-sm" style={{ color: "#FF6B6B" }}>{error}</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {/* Heading */}
+          <motion.h1
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3, duration: 0.6 }}
+            className="font-black leading-tight mb-6"
+            style={{
+              fontFamily: "Inter, sans-serif",
+              fontSize:   "clamp(2.5rem, 6vw, 4.5rem)",
+              color:      "var(--text-primary)",
+            }}
+          >
+            Land Your Dream Job
+            <br />
+            <span style={{
+              background:           "linear-gradient(135deg, #1C6E4A, #A8C686)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor:  "transparent",
+            }}>
+              Beat the ATS System
+            </span>
+          </motion.h1>
 
-          {/* Analyze Button */}
+          {/* Subtitle */}
+          <motion.p
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+            className="text-lg mb-10 max-w-2xl mx-auto"
+            style={{ color: "var(--text-secondary)", fontFamily: "Roboto, sans-serif", lineHeight: "1.7" }}
+          >
+            Upload your resume and get an instant AI-powered ATS score,
+            skill gap analysis, job description matching, and a fully
+            improved version — all in under 15 seconds.
+          </motion.p>
+
+          {/* CTAs */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
+            transition={{ delay: 0.65 }}
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
-            <button
-              type="button"
-              onClick={handleAnalyze}
-              style={{
-                padding:        "16px",
-                fontSize:       "17px",
-                width:          "100%",
-                opacity:        file ? 1 : 0.5,
-                cursor:         file ? "pointer" : "not-allowed",
-                background:     "var(--brand)",
-                color:          "white",
-                borderRadius:   "10px",
-                fontFamily:     "Inter",
-                fontWeight:     600,
-                border:         "none",
-                display:        "flex",
-                alignItems:     "center",
-                justifyContent: "center",
-                gap:            "8px",
-                transition:     "all 0.2s ease",
-              }}
-              onMouseEnter={(e) => {
-                if (file) e.currentTarget.style.background = "var(--brand-dark)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--brand)";
-              }}
-            >
-              <Sparkles size={20} />
-              {file ? "Analyze My Resume" : "Upload a resume to continue"}
-            </button>
+            <Link href="/analyze">
+              <motion.button
+                whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+                className="btn-primary text-base px-8 py-4 flex items-center gap-2"
+              >
+                Analyze My Resume <ArrowRight size={18} />
+              </motion.button>
+            </Link>
+            <Link href="/compare">
+              <motion.button
+                whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+                className="btn-secondary text-base px-8 py-4"
+              >
+                Compare Versions
+              </motion.button>
+            </Link>
           </motion.div>
 
-          <p
-            className="text-center text-xs mt-4"
-            style={{ color: "var(--text-muted)" }}
+          {/* Trust badges */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.9 }}
+            className="flex flex-wrap justify-center gap-6 mt-12"
           >
-            Your resume is processed securely and deleted within 24 hours.
-          </p>
+            {["No login required", "Results in 15 seconds", "Auto-deleted in 24h"].map((badge) => (
+              <div key={badge} className="flex items-center gap-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+                <CheckCircle size={15} style={{ color: "var(--matcha)" }} />
+                {badge}
+              </div>
+            ))}
+          </motion.div>
         </div>
-      </div>
-    </div>
+
+        {/* Scroll indicator */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.2 }}
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2"
+        >
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>scroll down</span>
+          <motion.div
+            animate={{ y: [0, 8, 0] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+            className="w-5 h-8 rounded-full border flex items-start justify-center pt-1"
+            style={{ borderColor: "var(--glass-border)" }}
+          >
+            <div className="w-1 h-2 rounded-full" style={{ background: "var(--matcha)" }} />
+          </motion.div>
+        </motion.div>
+      </section>
+
+      {/* ── HOW IT WORKS ── */}
+      <section className="py-24 px-6">
+        <div className="max-w-5xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-4xl font-bold mb-4" style={{ fontFamily: "Inter", color: "var(--text-primary)" }}>
+              How It Works
+            </h2>
+            <p className="text-lg" style={{ color: "var(--text-secondary)" }}>
+              From upload to optimized resume in 4 simple steps
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {steps.map((s, i) => (
+              <motion.div
+                key={s.step}
+                initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }} transition={{ delay: i * 0.1 }}
+                className="glass-card p-6 text-center relative"
+              >
+                <div
+                  className="text-4xl font-black mb-3"
+                  style={{
+                    fontFamily: "Inter",
+                    background: "linear-gradient(135deg, #1C6E4A, #A8C686)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                  }}
+                >
+                  {s.step}
+                </div>
+                <h3 className="font-semibold mb-2" style={{ color: "var(--text-primary)", fontFamily: "Inter" }}>
+                  {s.title}
+                </h3>
+                <p className="text-sm" style={{ color: "var(--text-secondary)" }}>{s.desc}</p>
+                {i < steps.length - 1 && (
+                  <div className="hidden lg:block absolute -right-3 top-1/2 -translate-y-1/2 z-10"
+                    style={{ color: "var(--matcha)" }}>
+                    <ArrowRight size={20} />
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── FEATURES ── */}
+      <section className="py-24 px-6">
+        <div className="max-w-6xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+            className="text-center mb-16"
+          >
+            <h2 className="text-4xl font-bold mb-4" style={{ fontFamily: "Inter", color: "var(--text-primary)" }}>
+              Everything You Need
+            </h2>
+            <p className="text-lg" style={{ color: "var(--text-secondary)" }}>
+              A complete resume intelligence platform
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {features.map((f, i) => (
+              <motion.div
+                key={f.title}
+                initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }} transition={{ delay: i * 0.08 }}
+                className="glass-card p-6 group cursor-default"
+              >
+                <div
+                  className="w-10 h-10 rounded-lg flex items-center justify-center mb-4 transition-all duration-300 group-hover:scale-110"
+                  style={{ background: "rgba(28,110,74,0.2)", color: "var(--matcha)" }}
+                >
+                  {f.icon}
+                </div>
+                <h3 className="font-semibold text-lg mb-2" style={{ color: "var(--text-primary)", fontFamily: "Inter" }}>
+                  {f.title}
+                </h3>
+                <p className="text-sm leading-relaxed" style={{ color: "var(--text-secondary)" }}>
+                  {f.desc}
+                </p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA BANNER ── */}
+      <section className="py-24 px-6">
+        <div className="max-w-3xl mx-auto text-center">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            className="glass-card p-12"
+          >
+            <h2 className="text-4xl font-bold mb-4" style={{ fontFamily: "Inter", color: "var(--text-primary)" }}>
+              Ready to Get Hired?
+            </h2>
+            <p className="text-lg mb-8" style={{ color: "var(--text-secondary)" }}>
+              Upload your resume now — no sign up, no credit card, instant results.
+            </p>
+            <Link href="/analyze">
+              <motion.button
+                whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}
+                className="btn-primary text-lg px-10 py-4 inline-flex items-center gap-2"
+              >
+                Analyze My Resume Free <ArrowRight size={20} />
+              </motion.button>
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ── FOOTER ── */}
+      <footer className="py-8 px-6 border-t text-center"
+        style={{ borderColor: "var(--glass-border)", color: "var(--text-muted)" }}>
+        <p className="text-sm">© 2025 ResumeAI — Built with Next.js, Groq AI & Three.js</p>
+      </footer>
+    </main>
   );
 }

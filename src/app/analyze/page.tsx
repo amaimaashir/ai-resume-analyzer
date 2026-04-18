@@ -9,13 +9,14 @@ import {
   Upload, FileText, X, Briefcase,
   Sparkles, AlertCircle, CheckCircle2,
 } from "lucide-react";
-
+import { uploadResume, parseResume, analyzeResume, matchJob, readFileAsText } from "@/lib/api";
 export default function AnalyzePage() {
   const router = useRouter();
   const [file, setFile]           = useState<File | null>(null);
   const [jobDesc, setJobDesc]     = useState("");
   const [error, setError]         = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [step, setStep]           = useState(0);
 
   const onDrop = useCallback((accepted: File[], rejected: any[]) => {
     setError("");
@@ -36,16 +37,47 @@ export default function AnalyzePage() {
     maxFiles: 1,
   });
 
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (!file) { setError("Please upload a resume first."); return; }
     setError("");
     setIsLoading(true);
+
     try {
+      // Step 1 — Upload file
+      setStep(0);
+      const { sessionId, resumeId } = await uploadResume(file);
+
+      // Step 2 — Extract text on frontend then send to backend
+      setStep(1);
+      const rawText = await readFileAsText(file);
+      console.log("Extracted text length:", rawText.length);
+      console.log("Text preview:", rawText.slice(0, 200));
+      await parseResume(sessionId, resumeId, rawText);
+
+      // Step 3-4 — Analyze with AI
+      setStep(2);
+      await analyzeResume(sessionId, resumeId);
+
+      // Step 5 — Job match
+      setStep(4);
+      if (jobDesc.trim()) {
+        await matchJob(sessionId, resumeId, jobDesc);
+      }
+
+      // Step 6 — Done
+      setStep(5);
+
+      sessionStorage.setItem("sessionId",      sessionId);
+      sessionStorage.setItem("resumeId",       resumeId);
       sessionStorage.setItem("resumeFileName", file.name);
-      sessionStorage.setItem("resumeFileSize", String(file.size));
       sessionStorage.setItem("jobDescription", jobDesc);
-    } catch (e) {}
-    setTimeout(() => router.push("/dashboard"), 2500);
+
+      setTimeout(() => router.push("/dashboard"), 800);
+
+    } catch (e: any) {
+      setIsLoading(false);
+      setError(e.message || "Something went wrong. Please try again.");
+    }
   };
 
   const removeFile = (e: React.MouseEvent) => {
@@ -93,17 +125,26 @@ export default function AnalyzePage() {
             "Calculating ATS score",
             "Identifying skills",
             "Generating improvements",
-          ].map((step, i) => (
+          ].map((stepText, i) => (
             <motion.div
-              key={step}
+              key={stepText}
               className="flex items-center gap-3"
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0  }}
-              transition={{ delay: i * 0.5 }}
+              transition={{ delay: i * 0.2 }}
+              style={{ opacity: i <= step ? 1 : 0.4 }}
             >
-              <CheckCircle2 size={16} style={{ color: "var(--matcha)" }} />
-              <span className="text-sm" style={{ color: "var(--text-secondary)" }}>
-                {step}
+              <CheckCircle2 
+                size={16} 
+                style={{ 
+                  color: i < step ? "var(--matcha)" : "var(--glass-border)",
+                  opacity: i <= step ? 1 : 0.3
+                }} 
+              />
+              <span className="text-sm" style={{ 
+                color: i <= step ? "var(--text-primary)" : "var(--text-muted)",
+              }}>
+                {stepText}
               </span>
             </motion.div>
           ))}

@@ -4,14 +4,23 @@
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Sun, Moon, FileText, Menu, X } from "lucide-react";
+import { Sun, Moon, FileText, Menu, X, Home } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const NAV_LINKS = [
+  { label: "Home",      href: "/" },
+  { label: "Analyze",   href: "/analyze" },
+  { label: "Compare",   href: "/compare" },
+  { label: "Dashboard", href: "/dashboard" },
+];
 
 export default function Header() {
   const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [mounted, setMounted]     = useState(false);
+  const [scrolled, setScrolled]   = useState(false);
+  const [menuOpen, setMenuOpen]   = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     setMounted(true);
@@ -26,13 +35,11 @@ export default function Header() {
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: "easeOut" }}
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-        scrolled
-          ? "backdrop-blur-xl border-b"
-          : "bg-transparent"
+        scrolled ? "backdrop-blur-xl border-b" : "bg-transparent"
       }`}
       style={{
-        background: scrolled ? "var(--glass-bg)" : "transparent",
-        borderColor: "var(--glass-border)",
+        background:   scrolled ? "var(--glass-bg)" : "transparent",
+        borderColor:  "var(--glass-border)",
       }}
     >
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -47,10 +54,7 @@ export default function Header() {
           </div>
           <span
             className="font-bold text-lg"
-            style={{
-              fontFamily: "Inter, sans-serif",
-              color: "var(--text-primary)",
-            }}
+            style={{ fontFamily: "Inter, sans-serif", color: "var(--text-primary)" }}
           >
             Resume<span style={{ color: "var(--matcha)" }}>AI</span>
           </span>
@@ -58,33 +62,54 @@ export default function Header() {
 
         {/* Desktop Nav */}
         <nav className="hidden md:flex items-center gap-8">
-          {[
-            { label: "Home",     href: "/" },
-            { label: "Analyze",  href: "/analyze" },
-            { label: "Compare",  href: "/compare" },
-          ].map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className="text-sm font-medium transition-colors duration-200 hover:opacity-100"
-              style={{
-                color: "var(--text-secondary)",
-                fontFamily: "Inter, sans-serif",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.color = "var(--matcha)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.color = "var(--text-secondary)")
-              }
-            >
-              {link.label}
-            </Link>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-sm font-medium transition-colors duration-200"
+                style={{
+                  color:       isActive ? "var(--matcha)" : "var(--text-secondary)",
+                  fontFamily:  "Inter, sans-serif",
+                  borderBottom: isActive ? "2px solid var(--matcha)" : "2px solid transparent",
+                  paddingBottom: "2px",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.color = "var(--matcha)")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.color = isActive
+                    ? "var(--matcha)"
+                    : "var(--text-secondary)")
+                }
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </nav>
 
         {/* Right side */}
         <div className="flex items-center gap-3">
+          {pathname !== "/" && (
+            <Link href="/">
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200"
+                style={{
+                  background: "var(--glass-bg)",
+                  border:     "1px solid var(--glass-border)",
+                  color:      "var(--matcha)",
+                }}
+                title="Go to Home"
+              >
+                <Home size={16} />
+              </motion.button>
+            </Link>
+          )}
+
           {/* Theme Toggle */}
           {mounted && (
             <motion.button
@@ -93,8 +118,8 @@ export default function Header() {
               className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200"
               style={{
                 background: "var(--glass-bg)",
-                border: "1px solid var(--glass-border)",
-                color: "var(--matcha)",
+                border:     "1px solid var(--glass-border)",
+                color:      "var(--matcha)",
               }}
               aria-label="Toggle theme"
             >
@@ -139,21 +164,24 @@ export default function Header() {
           className="md:hidden px-6 pb-4 flex flex-col gap-4"
           style={{ background: "var(--bg-secondary)" }}
         >
-          {[
-            { label: "Home",    href: "/" },
-            { label: "Analyze", href: "/analyze" },
-            { label: "Compare", href: "/compare" },
-          ].map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              onClick={() => setMenuOpen(false)}
-              className="text-sm font-medium py-2"
-              style={{ color: "var(--text-secondary)", fontFamily: "Inter" }}
-            >
-              {link.label}
-            </Link>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                onClick={() => setMenuOpen(false)}
+                className="text-sm font-medium py-2"
+                style={{
+                  color:      isActive ? "var(--matcha)" : "var(--text-secondary)",
+                  fontFamily: "Inter",
+                  fontWeight: isActive ? "600" : "400",
+                }}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
           <Link href="/analyze" onClick={() => setMenuOpen(false)}>
             <button className="btn-primary w-full text-sm">
               Analyze Resume

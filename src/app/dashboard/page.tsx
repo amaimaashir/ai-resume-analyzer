@@ -10,14 +10,15 @@ import { getResults } from "@/lib/api";
 import {
   BarChart2, Brain, Target, Lightbulb,
   Download, GitCompare, ArrowRight, TrendingUp,
-  Loader2,
+  Loader2, Briefcase, CheckCircle2, XCircle,
+  AlertCircle,
 } from "lucide-react";
 
 function ScoreRing({ score, size = 140 }: { score: number; size?: number }) {
-  const radius       = (size - 16) / 2;
+  const radius        = (size - 16) / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset       = circumference - (score / 100) * circumference;
-  const color        = score >= 80 ? "#A8C686" : score >= 60 ? "#1C6E4A" : "#E57373";
+  const offset        = circumference - (score / 100) * circumference;
+  const color         = score >= 80 ? "#A8C686" : score >= 60 ? "#1C6E4A" : "#E57373";
 
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
@@ -50,6 +51,19 @@ function ScoreRing({ score, size = 140 }: { score: number; size?: number }) {
   );
 }
 
+function ScoreBar({ score, delay }: { score: number; delay: number }) {
+  return (
+    <div className="score-bar">
+      <motion.div
+        className="score-bar-fill"
+        initial={{ width: 0 }}
+        animate={{ width: `${score}%` }}
+        transition={{ duration: 1, delay, ease: "easeOut" }}
+      />
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [data, setData]       = useState<any>(null);
@@ -58,13 +72,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const sessionId = sessionStorage.getItem("sessionId");
-    if (!sessionId) {
-      router.push("/analyze");
-      return;
-    }
+    if (!sessionId) { router.push("/analyze"); return; }
+
     getResults(sessionId)
       .then(setData)
-      .catch(() => setError("Failed to load results. Please try again."))
+      .catch((e) => setError(e.message || "Failed to load results."))
       .finally(() => setLoading(false));
   }, [router]);
 
@@ -85,7 +97,8 @@ export default function DashboardPage() {
   if (error) return (
     <div className="fixed inset-0 flex items-center justify-center"
       style={{ background: "var(--bg-primary)" }}>
-      <div className="text-center glass-card p-8">
+      <div className="text-center glass-card p-8 max-w-md mx-4">
+        <AlertCircle size={40} className="mx-auto mb-4" style={{ color: "#FF6B6B" }} />
         <p className="text-lg mb-4" style={{ color: "#FF6B6B" }}>{error}</p>
         <Link href="/analyze">
           <button className="btn-primary">Try Again</button>
@@ -95,6 +108,8 @@ export default function DashboardPage() {
   );
 
   if (!data) return null;
+
+  const jm = data.jobMatch;
 
   return (
     <div style={{ minHeight: "100vh" }}>
@@ -116,6 +131,8 @@ export default function DashboardPage() {
 
           {/* ATS Score + Breakdown */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+            {/* Score Ring */}
             <motion.div className="glass-card p-8 flex flex-col items-center justify-center text-center"
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <div className="flex items-center gap-2 mb-4">
@@ -132,6 +149,7 @@ export default function DashboardPage() {
               </p>
             </motion.div>
 
+            {/* Score Breakdown */}
             <motion.div className="glass-card p-8 lg:col-span-2"
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
               <div className="flex items-center gap-2 mb-6">
@@ -143,8 +161,8 @@ export default function DashboardPage() {
               <div className="flex flex-col gap-5">
                 {[
                   { label: "Keyword Density", score: data.keywordScore },
-                  { label: "Formatting",       score: data.formatScore  },
-                  { label: "Readability",      score: data.readability  },
+                  { label: "Formatting",      score: data.formatScore  },
+                  { label: "Readability",     score: data.readability  },
                 ].map((item, i) => (
                   <div key={item.label}>
                     <div className="flex justify-between mb-2">
@@ -156,17 +174,123 @@ export default function DashboardPage() {
                         {item.score}/100
                       </span>
                     </div>
-                    <div className="score-bar">
-                      <motion.div className="score-bar-fill"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${item.score}%` }}
-                        transition={{ duration: 1, delay: 0.3 + i * 0.15 }} />
-                    </div>
+                    <ScoreBar score={item.score} delay={0.3 + i * 0.15} />
                   </div>
                 ))}
               </div>
             </motion.div>
           </div>
+
+          {/* ── JOB MATCH CARD ── only shown if user provided a JD ── */}
+          {jm && (
+            <motion.div className="glass-card p-8 mb-6"
+              initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+              <div className="flex items-center gap-2 mb-6">
+                <Briefcase size={20} style={{ color: "var(--matcha)" }} />
+                <h2 className="font-semibold" style={{ fontFamily: "Inter", color: "var(--text-primary)" }}>
+                  Job Match
+                </h2>
+                {/* Match % badge */}
+                <span
+                  className="ml-auto text-2xl font-extrabold"
+                  style={{
+                    fontFamily: "Inter",
+                    color: jm.matchPercent >= 70 ? "#A8C686"
+                         : jm.matchPercent >= 45 ? "#1C6E4A"
+                         : "#E57373",
+                  }}
+                >
+                  {jm.matchPercent}%
+                </span>
+                <span className="text-sm" style={{ color: "var(--text-muted)" }}>match</span>
+              </div>
+
+              {/* Match bar */}
+              <div className="mb-6">
+                <div className="score-bar" style={{ height: 10 }}>
+                  <motion.div
+                    style={{
+                      height: "100%", borderRadius: 999,
+                      background: jm.matchPercent >= 70
+                        ? "linear-gradient(90deg, #1C6E4A, #A8C686)"
+                        : jm.matchPercent >= 45
+                        ? "linear-gradient(90deg, #556B2F, #1C6E4A)"
+                        : "linear-gradient(90deg, #8B0000, #E57373)",
+                    }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${jm.matchPercent}%` }}
+                    transition={{ duration: 1.2, ease: "easeOut", delay: 0.4 }}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                {/* Matched Skills */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-3"
+                    style={{ color: "var(--text-muted)", fontFamily: "Inter" }}>
+                    ✓ Matched Skills ({jm.matchedSkills?.length ?? 0})
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(jm.matchedSkills ?? []).length > 0 ? (
+                      jm.matchedSkills.map((skill: string, i: number) => (
+                        <motion.span key={skill}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: i * 0.04 }}
+                          className="skill-tag flex items-center gap-1"
+                          style={{ borderColor: "var(--matcha)", color: "var(--matcha)" }}>
+                          <CheckCircle2 size={11} />
+                          {skill}
+                        </motion.span>
+                      ))
+                    ) : (
+                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>None detected</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Missing Skills */}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-3"
+                    style={{ color: "var(--text-muted)", fontFamily: "Inter" }}>
+                    ✗ Missing Skills ({jm.missingSkills?.length ?? 0})
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {(jm.missingSkills ?? []).length > 0 ? (
+                      jm.missingSkills.map((skill: string, i: number) => (
+                        <motion.span key={skill}
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: i * 0.04 }}
+                          className="skill-tag flex items-center gap-1"
+                          style={{ borderColor: "#E57373", color: "#E57373" }}>
+                          <XCircle size={11} />
+                          {skill}
+                        </motion.span>
+                      ))
+                    ) : (
+                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>None — great match!</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Recommendation */}
+              {jm.recommendation && (
+                <div className="p-4 rounded-xl"
+                  style={{ background: "var(--bg-secondary)", border: "1px solid var(--card-border)" }}>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-2"
+                    style={{ color: "var(--text-muted)", fontFamily: "Inter" }}>
+                    AI Recommendation
+                  </p>
+                  <p className="text-sm" style={{ color: "var(--text-secondary)", lineHeight: 1.7 }}>
+                    {jm.recommendation}
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          )}
 
           {/* Skills */}
           <motion.div className="glass-card p-8 mb-6"
@@ -189,14 +313,16 @@ export default function DashboardPage() {
                     {cat.label}
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {cat.items.map((skill: string, i: number) => (
+                    {cat.items.length > 0 ? cat.items.map((skill: string, i: number) => (
                       <motion.span key={skill} className="skill-tag"
                         initial={{ opacity: 0, scale: 0.8 }}
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: i * 0.04 }}>
                         {skill}
                       </motion.span>
-                    ))}
+                    )) : (
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>None detected</p>
+                    )}
                   </div>
                 </div>
               ))}
