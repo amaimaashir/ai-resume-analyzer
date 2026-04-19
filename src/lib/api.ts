@@ -1,15 +1,42 @@
 // src/lib/api.ts
-import JSZip from "jszip";
+// NO top-level pdfjs import here
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8787";
 
-// ── EXTRACT TEXT (with better mobile fallback) ─────────────────
+// ── PDF EXTRACTOR (dynamic import — browser only) ──────────────
+async function extractTextFromPDF(file: File): Promise<string> {
+  try {
+    const pdfjsLib = await import("pdfjs-dist");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const textParts: string[] = [];
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const pageText = content.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ");
+      textParts.push(pageText);
+    }
+
+    return textParts.join("\n").replace(/\s+/g, " ").trim();
+  } catch (e) {
+    console.error("PDF extraction failed:", e);
+    return "";
+  }
+}
+
+// ── DOCX EXTRACTOR (dynamic import — browser only) ─────────────
 async function extractTextFromDOCX(file: File): Promise<string> {
   try {
+    const JSZip = (await import("jszip")).default;
     const arrayBuffer = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(arrayBuffer);
     const docXml = zip.file("word/document.xml");
-    if (!docXml) throw new Error("Invalid DOCX");
+    if (!docXml) throw new Error("Invalid DOCX: word/document.xml not found");
     const xml = await docXml.async("string");
     const texts: string[] = [];
     const wtRegex = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g;
@@ -17,77 +44,24 @@ async function extractTextFromDOCX(file: File): Promise<string> {
     while ((m = wtRegex.exec(xml)) !== null) {
       if (m[1].trim()) texts.push(m[1]);
     }
-    const result = texts.join(" ").replace(/\s+/g, " ").trim();
-    return result;
+    return texts.join(" ").replace(/\s+/g, " ").trim();
   } catch (e) {
-    // If JSZip fails on mobile, return empty so backend handles it
     console.error("DOCX extraction failed:", e);
     return "";
   }
 }
 
-function extractTextFromPDF(buffer: ArrayBuffer): string {
-  try {
-    const bytes = new Uint8Array(buffer);
-    const str = new TextDecoder("latin1").decode(bytes);
-    const texts: string[] = [];
-
-    const btRegex = /BT([\s\S]*?)ET/g;
-    let btMatch: RegExpExecArray | null;
-    while ((btMatch = btRegex.exec(str)) !== null) {
-      const block = btMatch[1];
-      const tjRegex = /\(([^)\\]*(?:\\.[^)\\]*)*)\)\s*Tj/g;
-      let m: RegExpExecArray | null;
-      while ((m = tjRegex.exec(block)) !== null) {
-        const cleaned = m[1]
-          .replace(/\\n/g, " ").replace(/\\r/g, " ")
-          .replace(/\\t/g, " ").replace(/\\\\/g, "\\")
-          .replace(/\\(.)/g, "$1");
-        if (cleaned.trim().length > 0) texts.push(cleaned);
-      }
-      const tjArrRegex = /\[([^\]]*)\]\s*TJ/g;
-      while ((m = tjArrRegex.exec(block)) !== null) {
-        const inner = m[1]
-          .replace(/\(([^)]*)\)/g, "$1 ")
-          .replace(/-?\d+\.?\d*\s*/g, "")
-          .replace(/\\/g, "").trim();
-        if (inner.length > 0) texts.push(inner);
-      }
-    }
-
-    if (texts.length < 5) {
-      const tjFallback = /\(([^)]{2,200})\)\s*Tj/g;
-      let m: RegExpExecArray | null;
-      while ((m = tjFallback.exec(str)) !== null) {
-        texts.push(m[1].replace(/\\/g, ""));
-      }
-    }
-
-    return texts.join(" ").replace(/\s+/g, " ")
-      .replace(/[^\x20-\x7E\n]/g, "").trim();
-  } catch (e) {
-    console.error("PDF extraction failed:", e);
-    return "";
-  }
-}
-
+// ── MAIN READ FILE ─────────────────────────────────────────────
 export async function readFileAsText(file: File): Promise<string> {
   const ext = file.name.split(".").pop()?.toLowerCase();
   try {
     if (ext === "docx") {
       return await extractTextFromDOCX(file);
     } else {
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const text = extractTextFromPDF(e.target?.result as ArrayBuffer);
-          resolve(text);
-        };
-        reader.onerror = () => resolve(""); // don't throw, return empty
-        reader.readAsArrayBuffer(file);
-      });
+      return await extractTextFromPDF(file);
     }
-  } catch {
+  } catch (e) {
+    console.error("Text extraction failed:", e);
     return "";
   }
 }
@@ -119,7 +93,6 @@ export async function parseResume(
   resumeId: string,
   rawText: string
 ) {
-  // Send whatever we have — backend will extract from R2 if text is insufficient
   const res = await fetch(`${API_URL}/api/parse`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

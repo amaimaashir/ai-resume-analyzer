@@ -70,7 +70,7 @@ export default function AnalyzePage() {
       // Step 1 — Upload file
 setStep(0);
 const { sessionId, resumeId } = await uploadResume(file);
-alert(`Debug - Session: ${sessionId}`); // temporary debug - remove later
+//alert(`Debug - Session: ${sessionId}`); // temporary debug - remove later
 
       // Step 2 — Extract text on frontend then send to backend
       setStep(1);
