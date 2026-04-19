@@ -30,14 +30,30 @@ export default function AnalyzePage() {
   const [step, setStep]           = useState(0);
  
 
-  const onDrop = useCallback((accepted: File[], rejected: FileRejection[]) => {
-    setError("");
-    if (rejected.length > 0) {
-      setError("Only PDF or DOCX files under 10MB are accepted.");
+ const onDrop = useCallback((accepted: File[], rejected: FileRejection[]) => {
+  setError("");
+
+  // Detect mobile
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+  if (rejected.length > 0) {
+    setError("Only PDF or DOCX files under 10MB are accepted.");
+    return;
+  }
+
+  if (accepted.length > 0) {
+    const file = accepted[0];
+    const ext = file.name.split(".").pop()?.toLowerCase();
+
+    // Warn mobile users about PDF
+    if (isMobile && ext === "pdf") {
+      setError("PDF files may not work correctly on mobile. Please upload a DOCX version of your resume for best results.");
       return;
     }
-    if (accepted.length > 0) setFile(accepted[0]);
-  }, []);
+
+    setFile(file);
+  }
+}, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -71,7 +87,7 @@ export default function AnalyzePage() {
 setStep(0);
 const { sessionId, resumeId } = await uploadResume(file);
 //alert(`Debug - Session: ${sessionId}`); // temporary debug - remove later
-alert(`SID: ${sessionId}`);
+//alert(`SID: ${sessionId}`);
       // Step 2 — Extract text on frontend then send to backend
       setStep(1);
       const rawText = await readFileAsText(file);
