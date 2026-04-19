@@ -28,6 +28,7 @@ export default function AnalyzePage() {
   const [error, setError]         = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep]           = useState(0);
+ 
 
   const onDrop = useCallback((accepted: File[], rejected: FileRejection[]) => {
     setError("");
@@ -67,8 +68,9 @@ export default function AnalyzePage() {
 
     try {
       // Step 1 — Upload file
-      setStep(0);
-      const { sessionId, resumeId } = await uploadResume(file);
+setStep(0);
+const { sessionId, resumeId } = await uploadResume(file);
+alert(`Debug - Session: ${sessionId}`); // temporary debug - remove later
 
       // Step 2 — Extract text on frontend then send to backend
       setStep(1);
