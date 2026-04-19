@@ -1,15 +1,26 @@
+// src/app/analyze/page.tsx
 "use client";
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { useDropzone } from "react-dropzone";
+//import { useDropzone } from "react-dropzone";
+import { useDropzone, FileRejection } from "react-dropzone";
 import Header from "@/components/layout/Header";
 import {
   Upload, FileText, X, Briefcase,
   Sparkles, AlertCircle, CheckCircle2,
 } from "lucide-react";
 import { uploadResume, parseResume, analyzeResume, matchJob, readFileAsText } from "@/lib/api";
+
+const STEPS = [
+  "Uploading resume...",
+  "Extracting text content...",
+  "Calculating ATS score...",
+  "Matching job description...",
+  "Finalizing results...",
+];
+
 export default function AnalyzePage() {
   const router = useRouter();
   const [file, setFile]           = useState<File | null>(null);
@@ -18,7 +29,7 @@ export default function AnalyzePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [step, setStep]           = useState(0);
 
-  const onDrop = useCallback((accepted: File[], rejected: any[]) => {
+  const onDrop = useCallback((accepted: File[], rejected: FileRejection[]) => {
     setError("");
     if (rejected.length > 0) {
       setError("Only PDF or DOCX files under 10MB are accepted.");
@@ -37,6 +48,18 @@ export default function AnalyzePage() {
     maxFiles: 1,
   });
 
+  const formatSize = (bytes: number) =>
+    bytes < 1024 * 1024
+      ? `${(bytes / 1024).toFixed(1)} KB`
+      : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+
+  const removeFile = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setFile(null);
+    setError("");
+  };
+
   const handleAnalyze = async () => {
     if (!file) { setError("Please upload a resume first."); return; }
     setError("");
@@ -54,18 +77,18 @@ export default function AnalyzePage() {
       console.log("Text preview:", rawText.slice(0, 200));
       await parseResume(sessionId, resumeId, rawText);
 
-      // Step 3-4 — Analyze with AI
+      // Step 3 — Analyze with AI
       setStep(2);
       await analyzeResume(sessionId, resumeId);
 
-      // Step 5 — Job match
-      setStep(4);
+      // Step 4 — Job match
+      setStep(3);
       if (jobDesc.trim()) {
         await matchJob(sessionId, resumeId, jobDesc);
       }
 
-      // Step 6 — Done
-      setStep(5);
+      // Step 5 — Done
+      setStep(4);
 
       sessionStorage.setItem("sessionId",      sessionId);
       sessionStorage.setItem("resumeId",       resumeId);
@@ -74,30 +97,19 @@ export default function AnalyzePage() {
 
       setTimeout(() => router.push("/dashboard"), 800);
 
-    } catch (e: any) {
+    } catch (e: unknown) {
       setIsLoading(false);
-      setError(e.message || "Something went wrong. Please try again.");
+      const message = e instanceof Error ? e.message : "Something went wrong. Please try again.";
+      setError(message);
     }
   };
-
-  const removeFile = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    setFile(null);
-    setError("");
-  };
-
-  const formatSize = (bytes: number) =>
-    bytes < 1024 * 1024
-      ? `${(bytes / 1024).toFixed(1)} KB`
-      : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
   // ── LOADING SCREEN ──────────────────────────────
   if (isLoading) {
     return (
       <div
         className="fixed inset-0 z-50 flex flex-col items-center justify-center"
-        style={{ background: "var(--bg-primary)" }}
+        style={{ background: "rgba(13,31,26,0.97)", backdropFilter: "blur(20px)" }}
       >
         <motion.div
           animate={{ rotate: 360 }}
@@ -117,33 +129,39 @@ export default function AnalyzePage() {
           Analyzing your resume...
         </motion.h2>
         <p className="mb-10" style={{ color: "var(--text-secondary)" }}>
-          Gemini AI is reading your resume
+          Groq AI is processing your resume
         </p>
-        <div className="flex flex-col gap-3">
-          {[
-            "Extracting text content",
-            "Calculating ATS score",
-            "Identifying skills",
-            "Generating improvements",
-          ].map((stepText, i) => (
+
+        <div className="flex flex-col gap-3 w-72">
+          {STEPS.map((stepText, i) => (
             <motion.div
               key={stepText}
               className="flex items-center gap-3"
               initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0  }}
-              transition={{ delay: i * 0.2 }}
-              style={{ opacity: i <= step ? 1 : 0.4 }}
+              animate={{ opacity: i <= step ? 1 : 0.3, x: 0 }}
+              transition={{ delay: i * 0.1 }}
             >
-              <CheckCircle2 
-                size={16} 
-                style={{ 
-                  color: i < step ? "var(--matcha)" : "var(--glass-border)",
-                  opacity: i <= step ? 1 : 0.3
-                }} 
-              />
-              <span className="text-sm" style={{ 
-                color: i <= step ? "var(--text-primary)" : "var(--text-muted)",
-              }}>
+              <motion.div
+                animate={i === step ? { scale: [1, 1.3, 1] } : {}}
+                transition={{ repeat: Infinity, duration: 0.8 }}
+              >
+                <CheckCircle2
+                  size={16}
+                  style={{
+                    color: i < step
+                      ? "var(--matcha)"
+                      : i === step
+                      ? "var(--brand)"
+                      : "var(--text-muted)",
+                  }}
+                />
+              </motion.div>
+              <span
+                className="text-sm"
+                style={{
+                  color: i <= step ? "var(--text-primary)" : "var(--text-muted)",
+                }}
+              >
                 {stepText}
               </span>
             </motion.div>
@@ -165,7 +183,7 @@ export default function AnalyzePage() {
           <motion.div
             className="text-center mb-12"
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0  }}
+            animate={{ opacity: 1, y: 0 }}
           >
             <div
               className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6"
@@ -199,7 +217,7 @@ export default function AnalyzePage() {
           <motion.div
             className="glass-card p-8 mb-6"
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0  }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
           >
             <h2
@@ -246,8 +264,11 @@ export default function AnalyzePage() {
                     type="button"
                     onClick={removeFile}
                     style={{
-                      color: "var(--text-muted)", cursor: "pointer",
-                      background: "none", border: "none", padding: "4px",
+                      color:      "var(--text-muted)",
+                      cursor:     "pointer",
+                      background: "none",
+                      border:     "none",
+                      padding:    "4px",
                     }}
                   >
                     <X size={18} />
@@ -288,7 +309,7 @@ export default function AnalyzePage() {
           <motion.div
             className="glass-card p-8 mb-6"
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0  }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
             <h2
@@ -327,7 +348,7 @@ export default function AnalyzePage() {
             {error && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0  }}
+                animate={{ opacity: 1, y: 0 }}
                 exit={{   opacity: 0, y: -10 }}
                 className="flex items-center gap-3 p-4 rounded-xl mb-6"
                 style={{
@@ -344,7 +365,7 @@ export default function AnalyzePage() {
           {/* Analyze Button */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0  }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
           >
             <button
