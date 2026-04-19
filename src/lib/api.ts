@@ -119,28 +119,7 @@ export async function parseResume(
   resumeId: string,
   rawText: string
 ) {
-  const cleaned = rawText.trim();
-
-  if (cleaned.length === 0) {
-    throw new Error(
-      "No text could be extracted from your file. If this is a scanned PDF, please upload a DOCX version instead."
-    );
-  }
-
-  if (cleaned.length < 100) {
-    throw new Error(
-      "Very little text was found in your file. Please try a DOCX version of your resume."
-    );
-  }
-
-  const printable = cleaned.replace(/[^\x20-\x7E]/g, "").length;
-  const ratio = printable / cleaned.length;
-  if (ratio < 0.5) {
-    throw new Error(
-      "Your PDF appears to be scanned or image-based. Please upload a DOCX version."
-    );
-  }
-
+  // Send whatever we have — backend will extract from R2 if text is insufficient
   const res = await fetch(`${API_URL}/api/parse`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
