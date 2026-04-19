@@ -71,7 +71,7 @@ export default function AnalyzePage() {
 setStep(0);
 const { sessionId, resumeId } = await uploadResume(file);
 //alert(`Debug - Session: ${sessionId}`); // temporary debug - remove later
-
+alert(`SID: ${sessionId}`);
       // Step 2 — Extract text on frontend then send to backend
       setStep(1);
       const rawText = await readFileAsText(file);
